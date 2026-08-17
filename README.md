@@ -23,13 +23,22 @@ A model picker + reasoning-effort slider for the DeepSeek Harness web UI. Keeps 
 
 ## 安装 Install
 
-包已发布到 npm（`@magiczerowxy/dsh-modef`），用官方 `dsh plugin` 命令安装：
+包已发布到 npm（`@magiczerowxy/dsh-modef`），也可直接从 GitHub 安装，统一用官方 `dsh plugin` 命令（二选一）：
+
+### 方式 A：从 npm registry 安装（推荐）
 
 ```bash
-dsh plugin --profile desktop add @magiczerowxy/dsh-modef
+dsh plugin --profile <profile> add @magiczerowxy/dsh-modef
 ```
 
-该命令会自动把包写入 profile 依赖，并因包声明了 `dsh.bundle` 自动加入 layer stack（`dsh.profile.bundles`）。
+### 方式 B：直接从 GitHub 安装
+
+```bash
+dsh plugin --profile <profile> add github:Magiczerowxy/dsh-modef
+```
+
+> **`<profile>` 换成你自己的 profile 名**：DSH 桌面版默认用 `desktop`，Web 版用 `web`，其他自定义 profile 写对应名字。不带 `--profile` 时操作默认 profile。
+> 命令会自动把包写入 profile 依赖，并因包声明了 `dsh.bundle` 自动加入 layer stack（`dsh.profile.bundles`）。
 
 ### ⚠️ 必需：设置白名单补丁
 
@@ -50,7 +59,7 @@ const WEB_SETTINGS_NAMESPACES = [
 ### 卸载 Uninstall
 
 ```bash
-dsh plugin --profile desktop remove @magiczerowxy/dsh-modef
+dsh plugin --profile <profile> remove @magiczerowxy/dsh-modef
 ```
 
 同时可移除上面添加的白名单行（可选）。
