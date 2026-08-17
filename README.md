@@ -19,9 +19,8 @@ A model picker + reasoning-effort slider for the DeepSeek Harness web UI. Keeps 
   - **暗流涌动 (undertow)**：白→紫渐变点阵 + 亮点从右端喷射向左涌动、逐渐消散；进出最高档有对称的揭示/收起动画
 - **通用设置集成**：开关「高级的推理强度选择」+ 样式选择器（持久化到 `settings.yaml` 的 `dsh-modef` 命名空间）
 - **无缝接管**：开启后以低优先级（-100）遮蔽官方模型选择器，关闭即恢复官方设计
-- **中英双语文案**，跟随界面语言
 
-## 安装 Install
+## 安装 Install（这边建议把仓库直接扔给DSH自己安装）
 
 包已发布到 npm（`@magiczerowxy/dsh-modef`），也可直接从 GitHub 安装，统一用官方 `dsh plugin` 命令（二选一）：
 
