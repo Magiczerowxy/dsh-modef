@@ -3,4 +3,4 @@
 # `dsh.bundle.patch` manifest field.
 - insert:
     - id: dsh-modef
-      name: '@linxin666/dsh-modef'
+      name: '@magiczerowxy/dsh-modef'
