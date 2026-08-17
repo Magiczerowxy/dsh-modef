@@ -4,9 +4,9 @@
 
 A model picker + reasoning-effort slider for the DeepSeek Harness web UI. Keeps the model as the official dropdown, replaces the effort control with a Claude-style slider, and adds selectable max-tier animations controlled from General settings.
 
-## 截图 Screenshots
+## UI效果
 
-| 通用设置开关 | 推理强度滑块 | 最高档特效（暗流涌动） |
+| 通用设置开关 | 最高档特效（喷射流光） | 最高档特效（暗流涌动） |
 | --- | --- | --- |
 | ![settings](screenshots/settings-general.png) | ![slider](screenshots/effort-slider.png) | ![effect](screenshots/max-tier-effect.png) |
 
