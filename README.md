@@ -39,9 +39,9 @@ dsh plugin --profile <profile> add github:Magiczerowxy/dsh-modef
 > **`<profile>` 换成你自己的 profile 名**：DSH 桌面版默认用 `desktop`，Web 版用 `web`，其他自定义 profile 写对应名字。不带 `--profile` 时操作默认 profile。
 > 命令会自动把包写入 profile 依赖，并因包声明了 `dsh.bundle` 自动加入 layer stack（`dsh.profile.bundles`）。
 
-### ⚠️ 必需：设置白名单补丁
+### ⚠️ 旧版本（< 0.1.1-rc.2 / Desktop < 2.0.2）需要设置白名单补丁
 
-通用设置里的开关依赖 `settings.describe` 的命名空间白名单。需要把 `dsh-modef` 加入部署的 `@deepseek-ai/dsh-host-apiproxy`（官方决策点）：
+旧版 DSH 的 `settings.describe` 只对硬编码白名单 `WEB_SETTINGS_NAMESPACES` 内的命名空间开放配置。需要在部署的 `@deepseek-ai/dsh-host-apiproxy`（官方决策点）加入 `dsh-modef`：
 
 ```
 文件：<DSH 安装目录>/resources/app.asar.unpacked/node_modules/@deepseek-ai/dsh-host-apiproxy/lib/index.js
@@ -53,7 +53,7 @@ const WEB_SETTINGS_NAMESPACES = [
 ];
 ```
 
-> 这是 DSH 官方「新注册命名空间默认不对配置客户端开放」的硬编码白名单（注释明示扩展该列表是官方决策）。**DSH 升级覆盖此文件后需重新添加**。
+> **DSH 0.1.1-rc.2 / Desktop 2.0.2 及更新版本已移除该白名单**：host 的 `settings.describe` 现在直接暴露全部已注册命名空间，无需任何补丁，本插件的设置行自动可用。仅老版本需要上述手动补丁，且 DSH 升级覆盖该文件后需重新添加。
 
 ### 卸载 Uninstall
 
