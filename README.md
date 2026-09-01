@@ -63,6 +63,18 @@ dsh plugin --profile <profile> remove @magiczerowxy/dsh-modef
 
 同时可移除上面添加的白名单行（可选）。
 
+## 版本兼容性 Compatibility
+
+### DSH 0.1.2-alpha 线（0.2.3+）
+
+DSH 0.1.2-alpha.1 起 `@deepseek-ai/dsh-settings` 移除了 `settingsNamespace` / `installSettingsSection` 具名导出（仅剩 `SettingsProvider` / `SettingsConflictError` / `redactSecrets`）。0.2.0 及更早版本直接 import 该导出会在模块求值期抛 SyntaxError，导致整个插件树 fail-fast 崩溃。**0.2.3+ 已内联 namespace 字符串 + 正则校验，不再依赖已删除的导出**，同时：
+
+- `dsh.client.inject` 移除对已拆包的 `@deepseek-ai/dsh-client-ui-slots` 的引用（alpha.2 起 slots 服务内联进 `dsh-cordis-client-runner`），改为 `dsh-client-locale` + `dsh-client-ui-model-selection`（alpha 线实际存在的包）。
+- **冷启动模型/推理控件空白修复（0.2.6，重要）**：seat 的 fiber `inject` 必须声明 `remote` / `remote.session`——`modelDirectories.directoryFor()` 内部访问 `this.ctx.remote.session`，Cordis 按调用方 fiber 的依赖白名单隔离，缺声明时抛 `cannot get property "remote.session" without inject`，目录永远解析失败，模型/推理控件在重启后空白，直到用户重开设置开关（销毁重建 seat）才恢复。0.2.6 补齐依赖声明后，**重启服务后控件无需任何操作直接可用**。
+- seat 注册对未物化会话的 `directoryFor` 抛错做防御（SAFE_DIRECTORY 占位），并带 500ms 重试循环，session scope 就绪后自动唤醒。
+
+> 测试：`tests/` 含 live-store 冷启动唤醒、多会话隔离、订阅转发的回归测试（Node 直跑 `node tests/dsh-modef-livestore-test.mjs`）。
+
 ## 使用 Usage
 
 1. 打开 Harness 通用设置 → 打开「高级的推理强度选择」
