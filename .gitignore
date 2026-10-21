@@ -1,0 +1,9 @@
+node_modules/
+*.tgz
+*.log
+_dsh_ui_tmp/
+.DS_Store
+
+# Local manual-edit backups (never shipped)
+*.bak
+*.bak-*
