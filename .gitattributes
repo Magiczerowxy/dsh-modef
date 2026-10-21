@@ -1,0 +1,20 @@
+# Keep the shipped sources byte-for-byte identical on every platform.
+#
+# Without this, a Windows clone (git's default `core.autocrlf=true`) rewrites
+# every LF in these files to CRLF. Nothing here breaks at runtime — the bundles
+# are plain JS — but it makes `git diff` noisy for contributors and, more
+# importantly, means a checksum of the installed `lib/client.js` no longer
+# matches the one published here. The plugin ships ONE artifact that every
+# platform must consume unmodified, so the line endings are pinned at the
+# repository boundary instead of left to each machine's git config.
+* text=auto eol=lf
+
+# Binary assets: never touched, never diffed.
+*.png binary
+*.ico binary
+*.jpg binary
+*.webp binary
+*.tgz binary
+
+# Generated test captures and logs are not part of the package.
+*.log -text
