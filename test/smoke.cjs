@@ -7444,8 +7444,8 @@ check('a sent bubble rises in, and history never animates', () => {
   const kf = cssNow.slice(kfOpen + 1, kfClose);
   // It has to come from BELOW and fade: a rise without an opacity ramp is a
   // different effect, and an opacity ramp without travel is not a rise.
-  if (!/translate3d\(0,14px,0\)/.test(kf)) {
-    throw new Error('the entrance does not start 14px below its resting position: ' + kf);
+  if (!/translate3d\(0,26px,0\)/.test(kf)) {
+    throw new Error('the entrance does not start 26px below its resting position: ' + kf);
   }
   if (!/opacity:0/.test(kf) || !/opacity:1/.test(kf)) {
     throw new Error('the entrance does not fade from transparent to opaque: ' + kf);
@@ -7453,8 +7453,25 @@ check('a sent bubble rises in, and history never animates', () => {
   const ruleAt = cssNow.indexOf('.dms-bubbleRise{');
   if (ruleAt < 0) throw new Error('the .dms-bubbleRise rule is missing');
   const rule = cssNow.slice(ruleAt, cssNow.indexOf('}', ruleAt));
-  if (!/animation:dms-bubbleRise 420ms/.test(rule)) {
-    throw new Error('the entrance is not bound to 420ms: ' + rule);
+  if (!/animation:dms-bubbleRise 620ms/.test(rule)) {
+    throw new Error('the entrance is not bound to 620ms: ' + rule);
+  }
+  // The JS constant and the CSS duration are the same fact in two places, and the
+  // hand-off arithmetic depends on it: a stale constant would let the durable node
+  // resume past the end (or stop early) at exactly the moment the bubble is swapped.
+  // Read the duration OUT of the rule and compare, rather than trusting either side.
+  const durInRule = /animation:dms-bubbleRise (\d+)ms/.exec(rule);
+  if (!durInRule) throw new Error('could not read the entrance duration from the rule: ' + rule);
+  if (Number(durInRule[1]) !== api.BUBBLE_RISE_MS) {
+    throw new Error('BUBBLE_RISE_MS (' + api.BUBBLE_RISE_MS + 'ms) disagrees with the CSS duration (' + durInRule[1] + 'ms); the hand-off would be cut short');
+  }
+  // The CURVE is load-bearing, not decoration: easeOutQuint covers ~92% of the
+  // distance in the first 40% of the duration, so on a long animation the rise is
+  // over almost immediately and the remaining time reads as nothing happening.
+  // The standard curve spreads the travel across the window, which is the whole
+  // reason the lift is perceptible. Pinned so it cannot silently go back.
+  if (!/cubic-bezier\(\.4,0,\.2,1\)/.test(rule)) {
+    throw new Error('the entrance lost the standard curve, so most of the travel would happen in the first fraction of the duration: ' + rule);
   }
   // Composited properties ONLY. The assertion is written as a WHITELIST over the
   // whole declaration block rather than a blacklist over the `animation` value:
@@ -7475,9 +7492,6 @@ check('a sent bubble rises in, and history never animates', () => {
   }
   if (decls.indexOf('animation') === -1) {
     throw new Error('the entrance rule declares no animation: ' + rule);
-  }
-  if (!/cubic-bezier\(\.22,1,\.36,1\)/.test(rule)) {
-    throw new Error('the entrance lost its ease-out curve: ' + rule);
   }
   // Reduced motion must neutralise it in the sheet as well as at install time.
   if (cssNow.indexOf('@media (prefers-reduced-motion:reduce){.dms-bubbleRise{animation:none}}') === -1) {
