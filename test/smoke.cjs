@@ -7419,6 +7419,227 @@ check('the effort memory survives a hostile or malformed store', () => {
   }
 });
 
+
+// 4i. 发送的消息气泡入场动效 (ui: 「从下面出来的平滑渐显，要丝滑」).
+//
+// The motion must fire ONLY for a message the user just sent. Three things are
+// pinned: the stylesheet, the trigger (an echo row starts it, history does not),
+// and the hand-off (the durable node that replaces the echo continues the same
+// keyframes from where the echo stopped, instead of restarting or going static).
+check('a sent bubble rises in, and history never animates', () => {
+  const api = loadModule().__test;
+  if (!api || typeof api.installBubbleMotion !== 'function') {
+    throw new Error('the bubble motion installer is not exported for testing');
+  }
+
+  // ---- the stylesheet -----------------------------------------------------
+  const cssNow = (() => { injectedCss = ''; loadModule({ noPrimitives: true }).apply(makeCtx({}).ctx); return injectedCss; })();
+  if (cssNow.indexOf('@keyframes dms-bubbleRise') === -1) {
+    throw new Error('the bubble entrance keyframes are missing');
+  }
+  const kfAt = cssNow.indexOf('@keyframes dms-bubbleRise');
+  const kfOpen = cssNow.indexOf('{', kfAt);
+  const kfClose = cssNow.indexOf('}}', kfOpen);
+  if (kfOpen < 0 || kfClose < 0) throw new Error('could not read the dms-bubbleRise keyframes');
+  const kf = cssNow.slice(kfOpen + 1, kfClose);
+  // It has to come from BELOW and fade: a rise without an opacity ramp is a
+  // different effect, and an opacity ramp without travel is not a rise.
+  if (!/translate3d\(0,14px,0\)/.test(kf)) {
+    throw new Error('the entrance does not start 14px below its resting position: ' + kf);
+  }
+  if (!/opacity:0/.test(kf) || !/opacity:1/.test(kf)) {
+    throw new Error('the entrance does not fade from transparent to opaque: ' + kf);
+  }
+  const ruleAt = cssNow.indexOf('.dms-bubbleRise{');
+  if (ruleAt < 0) throw new Error('the .dms-bubbleRise rule is missing');
+  const rule = cssNow.slice(ruleAt, cssNow.indexOf('}', ruleAt));
+  if (!/animation:dms-bubbleRise 420ms/.test(rule)) {
+    throw new Error('the entrance is not bound to 420ms: ' + rule);
+  }
+  // Composited properties ONLY. The assertion is written as a WHITELIST over the
+  // whole declaration block rather than a blacklist over the `animation` value:
+  // a mutation that merely APPENDS `margin-top:0` next to the shorthand (or
+  // animates a layout property by some other spelling) would slip past a
+  // blacklist that only looks inside `animation:`.
+  const decls = rule
+    .slice(rule.indexOf('{') + 1)
+    .split(';')
+    .map((d) => d.trim())
+    .filter((d) => d.length > 0)
+    .map((d) => d.substring(0, d.indexOf(':')).trim());
+  const ALLOWED = ['animation', 'will-change'];
+  for (const name of decls) {
+    if (ALLOWED.indexOf(name) === -1) {
+      throw new Error('the entrance rule declares `' + name + '`, which is outside the composited whitelist: ' + rule);
+    }
+  }
+  if (decls.indexOf('animation') === -1) {
+    throw new Error('the entrance rule declares no animation: ' + rule);
+  }
+  if (!/cubic-bezier\(\.22,1,\.36,1\)/.test(rule)) {
+    throw new Error('the entrance lost its ease-out curve: ' + rule);
+  }
+  // Reduced motion must neutralise it in the sheet as well as at install time.
+  if (cssNow.indexOf('@media (prefers-reduced-motion:reduce){.dms-bubbleRise{animation:none}}') === -1) {
+    throw new Error('reduced motion does not disable the bubble entrance');
+  }
+
+  // ---- a fake DOM + observer to drive the trigger -------------------------
+  const makeNode = (cls, attrs) => {
+    const node = {
+      nodeType: 1,
+      _classes: cls === '' ? [] : cls.split(' '),
+      _parent: null,
+      _children: [],
+      _attrs: attrs || {},
+      _listeners: {},
+      style: {},
+      textContent: '',
+      classList: null,
+      getAttribute(name) { return Object.prototype.hasOwnProperty.call(this._attrs, name) ? this._attrs[name] : null; },
+      hasAttribute(name) { return Object.prototype.hasOwnProperty.call(this._attrs, name); },
+      matches(sel) {
+        if (sel === api.BUBBLE_SELECTOR) {
+          return this._classes.some((c) => c.indexOf('_bubble') !== -1)
+            && this._parent !== null
+            && this._parent._classes.some((c) => c.indexOf('_userStack') !== -1);
+        }
+        if (sel === api.ECHO_ROW_SELECTOR) return this.hasAttribute('data-submission-echo');
+        return false;
+      },
+      closest(sel) {
+        let cur = this;
+        while (cur !== null && cur !== undefined) {
+          if (cur.matches && cur.matches(sel)) return cur;
+          cur = cur._parent;
+        }
+        return null;
+      },
+      // Real subtree walk: the installer collects bubbles with this call.
+      querySelectorAll(sel) {
+        const found = [];
+        const walk = (n) => {
+          for (const child of n._children) {
+            if (child.matches && child.matches(sel)) found.push(child);
+            walk(child);
+          }
+        };
+        walk(this);
+        return found;
+      },
+      appendChild(child) { child._parent = this; this._children.push(child); return child; },
+      addEventListener(name, fn) { (this._listeners[name] = this._listeners[name] || []).push(fn); },
+      removeEventListener(name, fn) {
+        const list = this._listeners[name];
+        if (!list) return;
+        const at = list.indexOf(fn);
+        if (at >= 0) list.splice(at, 1);
+      }
+    };
+    node.classList = {
+      contains: (name) => node._classes.indexOf(name) !== -1,
+      add: (name) => { if (node._classes.indexOf(name) === -1) node._classes.push(name); },
+      remove: (name) => { const at = node._classes.indexOf(name); if (at >= 0) node._classes.splice(at, 1); }
+    };
+    return node;
+  };
+
+  const body = makeNode('');
+  const doc = { body: body };
+  let observerCallback = null;
+  let disconnected = false;
+  class FakeObserver {
+    constructor(cb) { observerCallback = cb; }
+    observe() {}
+    disconnect() { disconnected = true; }
+  }
+  const fakeWindow = { matchMedia: () => ({ matches: false }) };
+
+  // A controllable clock: the hand-off delay is derived from elapsed time, so
+  // the test must be able to move time forward deterministically.
+  let fakeNow = 1000;
+  const clockNow = () => fakeNow;
+  const dispose = api.installBubbleMotion({ window: fakeWindow, document: doc, MutationObserver: FakeObserver, now: clockNow });
+  if (typeof dispose !== 'function') throw new Error('the installer returned no disposer');
+
+  // Build: userStack > bubble, optionally under an echo row.
+  const buildBubble = (text, echo) => {
+    const stack = makeNode('LOmM4q_userStack');
+    const bubble = makeNode('LOmM4q_bubble');
+    bubble.textContent = text;
+    stack.appendChild(bubble);
+    const row = makeNode('LOmM4q_userRow', echo ? { 'data-submission-echo': 'true' } : {});
+    row.appendChild(stack);
+    return { row: row, stack: stack, bubble: bubble };
+  };
+
+  // 1) An echo bubble (the message just sent) animates.
+  const echo = buildBubble('hello', true);
+  observerCallback([{ addedNodes: [echo.row] }]);
+  if (!echo.bubble.classList.contains(api.BUBBLE_RISE_CLASS)) {
+    throw new Error('a submitted bubble did NOT animate: the motion never fires');
+  }
+
+  // 2) The durable node replacing it continues the SAME animation, so the
+  //    hand-off is invisible instead of restarting from the bottom.
+  fakeNow += 120;   // the Host confirmed 120ms later
+  const durable = buildBubble('hello', false);
+  observerCallback([{ addedNodes: [durable.row] }]);
+  if (!durable.bubble.classList.contains(api.BUBBLE_RISE_CLASS)) {
+    throw new Error('the durable replacement did not continue the entrance, so the bubble would snap');
+  }
+  const delay = String(durable.bubble.style.animationDelay || '');
+  if (!/^-\d+ms$/.test(delay)) {
+    throw new Error('the hand-off did not carry a negative delay (it would replay from the start): ' + JSON.stringify(delay));
+  }
+  const elapsedMs = Number(delay.replace('ms', '').replace('-', ''));
+  // Exactly the time that passed: continuing from any other point would jump.
+  if (elapsedMs !== 120) {
+    throw new Error('the hand-off did not resume at the elapsed 120ms (it would jump): ' + delay);
+  }
+
+  // 3) A durable bubble with NO pending echo is history, a session switch or a
+  //    virtualiser remount — it must stay perfectly still.
+  fakeNow += 10;
+  const history = buildBubble('an older message', false);
+  observerCallback([{ addedNodes: [history.row] }]);
+  if (history.bubble.classList.contains(api.BUBBLE_RISE_CLASS)) {
+    throw new Error('a bubble that was NOT just sent animated, so scrolling history would flicker');
+  }
+
+  // 4) A durable node must not claim an echo with different text.
+  const echoA = buildBubble('first', true);
+  observerCallback([{ addedNodes: [echoA.row] }]);
+  const other = buildBubble('unrelated text', false);
+  observerCallback([{ addedNodes: [other.row] }]);
+  if (other.bubble.classList.contains(api.BUBBLE_RISE_CLASS)) {
+    throw new Error('a durable node claimed an echo that had different text');
+  }
+  const echoA2 = buildBubble('first', false);
+  observerCallback([{ addedNodes: [echoA2.row] }]);
+  if (!echoA2.bubble.classList.contains(api.BUBBLE_RISE_CLASS)) {
+    throw new Error('the matching durable node did not claim its echo, so a real send would not animate');
+  }
+
+  // 5) Disposal stops the observer.
+  dispose();
+  if (!disconnected) throw new Error('disposing the effect did not disconnect the observer');
+
+  // 6) Reduced motion installs nothing at all.
+  const reduced = api.installBubbleMotion({
+    window: { matchMedia: () => ({ matches: true }) },
+    document: doc,
+    MutationObserver: FakeObserver
+  });
+  if (reduced !== null) {
+    throw new Error('reduced motion still installed the observer, so the animation could still run');
+  }
+
+  // 7) A host without MutationObserver degrades to no motion rather than throwing.
+  const without = api.installBubbleMotion({ window: fakeWindow, document: doc, MutationObserver: undefined, now: clockNow });
+  if (without !== null) throw new Error('the installer did not degrade when MutationObserver is missing');
+});
+
 const seat7 = seatOf(ctx7.registrations);
 const injected7 = seat7.options.inject('session-1');
 
