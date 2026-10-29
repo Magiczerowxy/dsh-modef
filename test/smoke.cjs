@@ -7444,8 +7444,8 @@ check('a sent bubble rises in, and history never animates', () => {
   const kf = cssNow.slice(kfOpen + 1, kfClose);
   // It has to come from BELOW and fade: a rise without an opacity ramp is a
   // different effect, and an opacity ramp without travel is not a rise.
-  if (!/translate3d\(0,26px,0\)/.test(kf)) {
-    throw new Error('the entrance does not start 26px below its resting position: ' + kf);
+  if (!/translate3d\(0,22px,0\)/.test(kf)) {
+    throw new Error('the entrance does not start 22px below its resting position: ' + kf);
   }
   if (!/opacity:0/.test(kf) || !/opacity:1/.test(kf)) {
     throw new Error('the entrance does not fade from transparent to opaque: ' + kf);
@@ -7453,8 +7453,8 @@ check('a sent bubble rises in, and history never animates', () => {
   const ruleAt = cssNow.indexOf('.dms-bubbleRise{');
   if (ruleAt < 0) throw new Error('the .dms-bubbleRise rule is missing');
   const rule = cssNow.slice(ruleAt, cssNow.indexOf('}', ruleAt));
-  if (!/animation:dms-bubbleRise 620ms/.test(rule)) {
-    throw new Error('the entrance is not bound to 620ms: ' + rule);
+  if (!/animation:dms-bubbleRise 500ms/.test(rule)) {
+    throw new Error('the entrance is not bound to 500ms: ' + rule);
   }
   // The JS constant and the CSS duration are the same fact in two places, and the
   // hand-off arithmetic depends on it: a stale constant would let the durable node
