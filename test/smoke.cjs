@@ -7716,14 +7716,20 @@ check('the header merge mirrors the native view tabs into a capsule', () => {
   if (!/height:28px/.test(thumbRule)) {
     throw new Error('the capsule fill is shorter than the track, so it reads as an inset box: ' + thumbRule);
   }
-  if (!/background-color:#3B82F6/i.test(thumbRule)) {
-    throw new Error('the capsule fill is not the slider high fill: ' + thumbRule);
+  if (!/background-color:#93C5FD/i.test(thumbRule)) {
+    throw new Error('the capsule fill is not the slider BASE blue (#93C5FD); the high/Max blue reads too strong in the header: ' + thumbRule);
   }
   const actAt = cssNow.indexOf('.dms-viewPillTabActive{');
   if (actAt < 0) throw new Error('the capsule active-label rule is missing');
   const actRule = cssNow.slice(actAt, cssNow.indexOf('}', actAt));
-  if (!/#fff|white/.test(actRule)) {
-    throw new Error('the active label does not invert on the blue fill: ' + actRule);
+  // The fill is light now, so the label must NOT be white (white on #93C5FD is
+  // around 1.9:1). Asserting the readable colour, not merely "inverted", keeps
+  // the pair from drifting back into an unreadable combination.
+  if (/color:\s*(#fff\b|#ffffff\b|white\b)/i.test(actRule)) {
+    throw new Error('the active label is white on the light fill, which is about 1.9:1 and unreadable: ' + actRule);
+  }
+  if (!/--dsw-alias-label-primary/.test(actRule)) {
+    throw new Error('the active label is not the primary label colour: ' + actRule);
   }
   // A hover tint on the ACTIVE label would wash the white text out.
   const hoverAt = cssNow.indexOf('.dms-viewPillTab:hover');
