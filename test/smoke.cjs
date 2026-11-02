@@ -7716,6 +7716,20 @@ check('the header merge mirrors the native view tabs into a capsule', () => {
   if (/box-shadow/.test(pillRule)) {
     throw new Error('the capsule track has an outer shadow again, which reads as a halo: ' + pillRule);
   }
+  // Compactness ceiling. The capsule shares a header row with the shipped controls,
+  // so it must stay a small control; a floor above these numbers means the bar is
+  // claiming header width it does not need. Stated as a CEILING on the floor, not an
+  // exact value, so the control can be tuned without rewriting the test.
+  const trackFloor = /min-width:(\d+)px/.exec(pillRule);
+  if (!trackFloor) throw new Error('the capsule track declares no min-width: ' + pillRule);
+  if (Number(trackFloor[1]) > 120) {
+    throw new Error('the capsule track floor grew back to ' + trackFloor[1] + 'px; it must stay a compact header control (<=120px)');
+  }
+  const segFloor = /min-width:(\d+)px/.exec(segRule);
+  if (!segFloor) throw new Error('the capsule segment declares no min-width: ' + segRule);
+  if (Number(segFloor[1]) > 56) {
+    throw new Error('the capsule segment floor grew back to ' + segFloor[1] + 'px, which pushes the whole bar wide (<=56px)');
+  }
   const thumbAt = cssNow.indexOf('.dms-viewPillThumb{');
   if (thumbAt < 0) throw new Error('the capsule fill rule is missing');
   const thumbRule = cssNow.slice(thumbAt, cssNow.indexOf('}', thumbAt));
