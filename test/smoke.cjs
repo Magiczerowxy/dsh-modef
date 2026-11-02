@@ -7722,14 +7722,16 @@ check('the header merge mirrors the native view tabs into a capsule', () => {
   const actAt = cssNow.indexOf('.dms-viewPillTabActive{');
   if (actAt < 0) throw new Error('the capsule active-label rule is missing');
   const actRule = cssNow.slice(actAt, cssNow.indexOf('}', actAt));
-  // The fill is light now, so the label must NOT be white (white on #93C5FD is
-  // around 1.9:1). Asserting the readable colour, not merely "inverted", keeps
-  // the pair from drifting back into an unreadable combination.
-  if (/color:\s*(#fff\b|#ffffff\b|white\b)/i.test(actRule)) {
-    throw new Error('the active label is white on the light fill, which is about 1.9:1 and unreadable: ' + actRule);
+  // White on the light fill is a DELIBERATE, user-chosen look, not an oversight:
+  // it measures about 1.8:1, so do not "fix" it back to a readable dark label
+  // without changing the design. It is pinned here precisely so that pairing
+  // cannot drift by accident in either direction.
+  if (!/color:\s*(#fff\b|#ffffff\b|white\b)/i.test(actRule)) {
+    throw new Error('the active label is expected to be white on the fill (a deliberate design choice): ' + actRule);
   }
-  if (!/--dsw-alias-label-primary/.test(actRule)) {
-    throw new Error('the active label is not the primary label colour: ' + actRule);
+  // The fill must stay light: that was the point of dropping to the base tier.
+  if (/--dsw-alias-label-primary/.test(actRule)) {
+    throw new Error('the active label went back to a dark colour on the light fill, which is not the chosen design: ' + actRule);
   }
   // A hover tint on the ACTIVE label would wash the white text out.
   const hoverAt = cssNow.indexOf('.dms-viewPillTab:hover');
