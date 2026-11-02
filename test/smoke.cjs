@@ -7666,6 +7666,36 @@ check('the header merge mirrors the native view tabs into a capsule', () => {
     throw new Error('installHeaderMerge is not exported for testing');
   }
 
+  // ---- the stylesheet: the regression that lost 轨迹 ---------------------
+  // DSH sizes the visible tab count from the row's own clientWidth. Hiding the row
+  // with `display:none` zeroes that width, the limit collapses to 1, every later
+  // view is folded into the row's More menu — and that menu is inside the very row
+  // we hid, so the second view vanishes entirely. The rule must therefore take the
+  // row out of flow while keeping it measurable.
+  const cssNow = (() => { injectedCss = ''; loadModule({ noPrimitives: true }).apply(makeCtx({}).ctx); return injectedCss; })();
+  const hideAt = cssNow.indexOf('html.dms-headerMerge div:has(> [data-conversation-tabs]){');
+  if (hideAt < 0) {
+    throw new Error('the native tab row is not hidden at all, so both tab rows would show');
+  }
+  const hideRule = cssNow.slice(hideAt, cssNow.indexOf('}', hideAt));
+  if (/display\s*:\s*none/.test(hideRule)) {
+    throw new Error('the tab row is hidden with display:none, which zeroes the width DSH measures the visible tab count from and drops every view after the first: ' + hideRule);
+  }
+  if (!/position\s*:\s*absolute/.test(hideRule)) {
+    throw new Error('the tab row is not taken out of flow, so it still occupies a row in the header: ' + hideRule);
+  }
+  if (!/visibility\s*:\s*hidden/.test(hideRule)) {
+    throw new Error('the tab row is left visible: ' + hideRule);
+  }
+  // Equal segments, otherwise the thumb travels between halves of different widths
+  // and the capsule reads as two loose buttons instead of one switch.
+  const segAt = cssNow.indexOf('.dms-viewPillTab{');
+  if (segAt < 0) throw new Error('the capsule segment rule is missing');
+  const segRule = cssNow.slice(segAt, cssNow.indexOf('}', segAt));
+  if (!/flex:1 1 0/.test(segRule)) {
+    throw new Error('the capsule segments are not equal width, so the thumb cannot travel between two identical halves: ' + segRule);
+  }
+
   // ---- a fake DOM just big enough for the header -------------------------
   const makeEl = (tag) => {
     const el = {
