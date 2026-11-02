@@ -7666,6 +7666,20 @@ check('the header merge mirrors the native view tabs into a capsule', () => {
     throw new Error('installHeaderMerge is not exported for testing');
   }
 
+  // ---- the stylesheet: the header divider --------------------------------
+  // The line under the header separated the title row from the tab row. Once the
+  // tabs move up into the header that second row is gone, so the line is left
+  // separating nothing.
+  const dividerCss = (() => { injectedCss = ''; loadModule({ noPrimitives: true }).apply(makeCtx({}).ctx); return injectedCss; })();
+  // Assert the SCOPED selector verbatim. An earlier version of this check looked for
+  // the scope anywhere before the rule, which was vacuously true — the sheet already
+  // contains other `html.dms-headerMerge` rules earlier in the file — so an unscoped
+  // divider (one that would fire with the feature OFF) sailed through.
+  const scopedDivider = 'html.dms-headerMerge header:has([data-slot="conversation.session.header"]){border-bottom:none}';
+  if (dividerCss.indexOf(scopedDivider) < 0) {
+    throw new Error('the header divider is not hidden by a rule scoped to the merge switch: ' + (dividerCss.indexOf('border-bottom:none') < 0 ? 'no such rule at all' : 'the rule exists but is unscoped or malformed'));
+  }
+
   // ---- the stylesheet: the regression that lost 轨迹 ---------------------
   // DSH sizes the visible tab count from the row's own clientWidth. Hiding the row
   // with `display:none` zeroes that width, the limit collapses to 1, every later
