@@ -153,6 +153,22 @@ satisfies("0.2.0-rc.1", "… || ^0.2.0-rc.1", {includePrerelease:true}) → true
 
 观察者随 fiber 一起释放（`ctx.effect` 的 disposer 会 `disconnect()`），热重载不会留下重复监听。
 
+### 顶部控件合并
+
+默认关闭。开启后做三件事：把「对话 / 轨迹」从标题栏下方搬到右上角、改成胶囊滑块；去掉左侧那个「···」；把它里面的两项并入右侧「···」菜单（排在「下载 Session 日志 / 反馈」之后）。关闭即完全还原 DSH 原样。
+
+| 问题 | 做法 |
+| --- | --- |
+| 怎么把胶囊放进右上角 | 往 `div[data-slot="conversation.session.header.utilities"]` 里 **prepend** 一个元素。slot 条目的锚点是 `display:contents`，所以插进去的节点直接成为 `.headerUtilities` 的 flex item，自然落在那组控件最左边 |
+| 原生 tab 行怎么去掉 | 整行 `display:none`，但**不卸载**。React 会继续更新那些按钮的 `aria-selected`，胶囊正是从那里读状态的 |
+| 胶囊为什么不是重建的 tab | 它只是原生按钮的**镜像**：标签文字、激活态都从原生按钮读，点击就是点原生按钮。于是本地化、开发者工具对「轨迹」的隐藏、以后新增的视图，全都自动跟随，不需要复制 DSH 的任何视图逻辑 |
+| 滑块怎么做到平滑 | 一个绝对定位的 thumb，只改 `transform` 与 `width`，`transition` 走 `.28s cubic-bezier(.4,0,.2,1)`。两者都是合成层属性，滑动不会引起重排 |
+| 左侧「···」的两项怎么搬过去 | 右侧那个菜单属于 `dsh-session-log-export`，行来自它私有的 `items` 数组，**没有任何 slot 可以扩展**。所以两行是从一条现有行 `cloneNode` 出来的（样式因此来自原语本身，而不是抄来的类名），再追加进菜单的 viewport。原语的键盘遍历走的是活 DOM（`list.querySelectorAll("button:not(:disabled)")`），所以追加的行会加入方向键导航，不会被跳过 |
+
+选择器只依赖两处稳定结构：`data-slot="…header.utilities"` 与 `data-conversation-tabs`。隐藏整行用的是 `div:has(> [data-conversation-tabs])` —— CSS Modules 的类名带每构建都会变的哈希前缀，写死类名会在下次升级时静默失效。
+
+**这个开关不写入设置文档**，只存 `localStorage` 的 `dsh-modef.headerMerge.v1`。原因：卡片里要加一个文档字段就得改宿主半区的 schema，而那需要重启 DSH 才生效；开关本身是纯前端的 DOM/样式改动，没必要为此让用户重启。代价是它不随 profile 同步。
+
 ### 其他
 
 - **模型名完整显示**：输入框里的选择器上限取自 DSH 自带的选择器 `min(360px, 45cqw)`，`45cqw` 相对输入框那一行（该行自己声明了 `container-type:inline-size`），所以上限随输入框宽度缩放。省略号保留作为最后兜底。

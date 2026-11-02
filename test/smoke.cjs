@@ -7654,6 +7654,258 @@ check('a sent bubble rises in, and history never animates', () => {
   if (without !== null) throw new Error('the installer did not degrade when MutationObserver is missing');
 });
 
+
+// 4j. 顶部控件合并 (ui: 「对话/轨迹 搬到右上角做成胶囊滑块，左侧 ··· 并到右侧 ···」).
+//
+// The capsule must be a MIRROR of the native tabs, not a re-implementation: the
+// labels, the active view and the click target all come from the shipped buttons,
+// so localization, the developer-tools filter and any future view keep working.
+check('the header merge mirrors the native view tabs into a capsule', () => {
+  const api = loadModule().__test;
+  if (!api || typeof api.installHeaderMerge !== 'function') {
+    throw new Error('installHeaderMerge is not exported for testing');
+  }
+
+  // ---- a fake DOM just big enough for the header -------------------------
+  const makeEl = (tag) => {
+    const el = {
+      tagName: String(tag).toUpperCase(),
+      nodeType: 1,
+      _classes: [],
+      _children: [],
+      _attrs: {},
+      _listeners: {},
+      style: {},
+      textContent: '',
+      offsetLeft: 0,
+      offsetWidth: 40,
+      parentNode: null,
+      firstChild: null,
+      lastChild: null,
+      classList: null,
+      addEventListener(name, fn) { (el._listeners[name] = el._listeners[name] || []).push(fn); },
+      removeEventListener(name, fn) {
+        const list = el._listeners[name];
+        if (!list) return;
+        const at = list.indexOf(fn);
+        if (at >= 0) list.splice(at, 1);
+      },
+      setAttribute(k, v) { el._attrs[k] = String(v); },
+      getAttribute(k) { return Object.prototype.hasOwnProperty.call(el._attrs, k) ? el._attrs[k] : null; },
+      removeAttribute(k) { delete el._attrs[k]; },
+      appendChild(child) {
+        child.parentNode = el;
+        el._children.push(child);
+        el.firstChild = el._children[0];
+        el.lastChild = el._children[el._children.length - 1];
+        return child;
+      },
+      insertBefore(child, ref) {
+        const at = ref === null || ref === undefined ? el._children.length : el._children.indexOf(ref);
+        child.parentNode = el;
+        el._children.splice(at < 0 ? el._children.length : at, 0, child);
+        el.firstChild = el._children[0];
+        el.lastChild = el._children[el._children.length - 1];
+        return child;
+      },
+      removeChild(child) {
+        const at = el._children.indexOf(child);
+        if (at >= 0) el._children.splice(at, 1);
+        child.parentNode = null;
+        el.firstChild = el._children[0] || null;
+        el.lastChild = el._children[el._children.length - 1] || null;
+        return child;
+      },
+      querySelectorAll(sel) {
+        const out = [];
+        const walk = (n) => {
+          for (const c of n._children) {
+            if (matchesSel(c, sel)) out.push(c);
+            walk(c);
+          }
+        };
+        walk(el);
+        return out;
+      },
+      querySelector(sel) {
+        const hit = el.querySelectorAll(sel);
+        return hit.length > 0 ? hit[0] : null;
+      },
+      matches(sel) { return matchesSel(el, sel); },
+      click() { (el._listeners.click || []).forEach((fn) => fn({ preventDefault() {}, stopPropagation() {} })); el._clicks = (el._clicks || 0) + 1; }
+    };
+    el.classList = {
+      add: (n) => { if (el._classes.indexOf(n) === -1) el._classes.push(n); },
+      remove: (n) => { const i = el._classes.indexOf(n); if (i >= 0) el._classes.splice(i, 1); },
+      contains: (n) => el._classes.indexOf(n) !== -1
+    };
+    Object.defineProperty(el, 'className', {
+      get() { return el._classes.join(' '); },
+      set(value) { el._classes = String(value).split(/\s+/).filter((s) => s !== ''); }
+    });
+    Object.defineProperty(el, 'children', { get() { return el._children; } });
+    return el;
+  };
+
+  const matchesSel = (el, sel) => {
+    if (sel.charAt(0) === '.') return el._classes.indexOf(sel.slice(1)) !== -1;
+    if (sel === '[data-conversation-tabs]') return el._attrs['data-conversation-tabs'] !== undefined;
+    if (sel === '[data-slot="conversation.session.header.utilities"]') return el._attrs['data-slot'] === 'conversation.session.header.utilities';
+    if (sel === '[role="tab"]') return el._attrs['role'] === 'tab';
+    if (sel === '[role="menu"]') return el._attrs['role'] === 'menu';
+    if (sel === '[role="presentation"]') return el._attrs['role'] === 'presentation';
+    if (sel === 'button[role="menuitem"]') return el.tagName === 'BUTTON' && el._attrs['role'] === 'menuitem';
+    if (sel === '[class*="dms-viewPillTab"]') return el._classes.some((c) => c.indexOf('dms-viewPillTab') !== -1);
+    if (sel === 'svg') return el.tagName === 'SVG';
+    if (sel === 'span:not([class*=Icon])') return el.tagName === 'SPAN' && !el._classes.some((c) => c.indexOf('Icon') !== -1);
+    if (sel === 'span[class*=Icon]') return el.tagName === 'SPAN' && el._classes.some((c) => c.indexOf('Icon') !== -1);
+    return false;
+  };
+
+  const html = makeEl('html');
+  const body = makeEl('body');
+  const utilities = makeEl('div');
+  utilities.setAttribute('data-slot', 'conversation.session.header.utilities');
+  const tabsRow = makeEl('div');
+  const tablist = makeEl('div');
+  tablist.setAttribute('data-conversation-tabs', '');
+  tabsRow.appendChild(tablist);
+  // A pre-existing utilities control, so "first child" is actually testable:
+  // appending the capsule instead of prepending it would leave this one at 0.
+  const shippedControl = makeEl('button');
+  shippedControl.className = 'shipped-more';
+  utilities.appendChild(shippedControl);
+  const tabChat = makeEl('button');
+  tabChat.setAttribute('role', 'tab');
+  tabChat.setAttribute('aria-selected', 'false');
+  tabChat.textContent = '对话';
+  const tabTraj = makeEl('button');
+  tabTraj.setAttribute('role', 'tab');
+  tabTraj.setAttribute('aria-selected', 'true');
+  tabTraj.textContent = '轨迹';
+  tablist.appendChild(tabChat);
+  tablist.appendChild(tabTraj);
+  body.appendChild(utilities);
+  body.appendChild(tabsRow);
+  html.appendChild(body);
+
+  const doc = {
+    documentElement: html,
+    body: body,
+    createElement: (tag) => makeEl(tag),
+    querySelector: (sel) => {
+      const hit = body.querySelectorAll(sel);
+      if (hit.length > 0) return hit[0];
+      return matchesSel(body, sel) ? body : (matchesSel(html, sel) ? html : null);
+    },
+    dispatchEvent: () => true
+  };
+  const fakeWindow = {
+    requestAnimationFrame: (fn) => { fn(); return 0; },
+    setTimeout: (fn) => { fn(); return 0; },
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    KeyboardEvent: function (type, init) { this.type = type; this.key = init && init.key; }
+  };
+  let observerCallback = null;
+  let disconnected = false;
+  class FakeObserver {
+    constructor(cb) { observerCallback = cb; }
+    observe() {}
+    disconnect() { disconnected = true; }
+  }
+
+  const labels = { browse: '浏览更多插件', create: '创建你的插件' };
+  api.dmsHeaderMergeWrite(false);
+  const dispose = api.installHeaderMerge({
+    document: doc, window: fakeWindow, MutationObserver: FakeObserver,
+    labels: labels, browsePlugins: () => {}, createPlugin: () => {}
+  });
+  if (typeof dispose !== 'function') throw new Error('the header-merge installer returned no disposer');
+
+  // ---- 1) switch OFF: nothing is touched --------------------------------
+  if (html._classes.indexOf('dms-headerMerge') !== -1) {
+    throw new Error('the merge class was applied while the switch is off');
+  }
+  if (utilities._children.some((c) => c._classes.indexOf('dms-viewPill') !== -1)) {
+    throw new Error('a capsule was built while the switch is off');
+  }
+
+  // ---- 2) switch ON: capsule mirrors the native tabs ---------------------
+  api.dmsHeaderMergeWrite(true);
+  if (html._classes.indexOf('dms-headerMerge') === -1) {
+    throw new Error('the merge class was not applied after enabling the switch');
+  }
+  const pill = utilities._children[0];
+  if (utilities._children.length < 2) {
+    throw new Error('the capsule REPLACED the shipped utilities control instead of sitting beside it');
+  }
+  if (utilities._children[1] !== shippedControl) {
+    throw new Error('the shipped utilities control is no longer directly after the capsule');
+  }
+  if (!pill || pill._classes.indexOf('dms-viewPill') === -1) {
+    throw new Error('the capsule is not the FIRST utilities child (it must sit left of the shipped controls)');
+  }
+  const pillTabs = pill._children.filter((c) => c._classes.indexOf('dms-viewPillTab') !== -1);
+  if (pillTabs.length !== 2) {
+    throw new Error('the capsule does not have one button per native tab: got ' + pillTabs.length);
+  }
+  // Labels are copied verbatim, so localization is inherited, never re-implemented.
+  if (pillTabs[0].textContent !== '对话' || pillTabs[1].textContent !== '轨迹') {
+    throw new Error('the capsule did not copy the native labels: ' + JSON.stringify([pillTabs[0].textContent, pillTabs[1].textContent]));
+  }
+  // The active state mirrors aria-selected, NOT the button index: the second native
+  // tab is the active one here, so a capsule that simply marks tab 0 would fail.
+  if (pillTabs[1]._classes.indexOf('dms-viewPillTabActive') === -1) {
+    throw new Error('the active native tab was not mirrored as active');
+  }
+  if (pillTabs[0]._classes.indexOf('dms-viewPillTabActive') !== -1) {
+    throw new Error('an inactive native tab was mirrored as active');
+  }
+
+  // ---- 3) the sliding thumb follows the active tab -----------------------
+  const thumb = pill._children.filter((c) => c._classes.indexOf('dms-viewPillThumb') !== -1)[0];
+  if (!thumb) throw new Error('the capsule has no thumb element');
+  if (!/^translateX\(\d+px\)$/.test(String(thumb.style.transform || ''))) {
+    throw new Error('the thumb did not receive a transform: ' + JSON.stringify(thumb.style.transform));
+  }
+  if (!/^\d+px$/.test(String(thumb.style.width || ''))) {
+    throw new Error('the thumb did not receive a width: ' + JSON.stringify(thumb.style.width));
+  }
+
+  // ---- 4) clicking the capsule clicks the real tab -----------------------
+  const beforeClicks = tabChat._clicks || 0;
+  pillTabs[0].click();
+  if ((tabChat._clicks || 0) !== beforeClicks + 1) {
+    throw new Error('clicking a capsule button did not click the native tab');
+  }
+
+  // ---- 5) a native switch is mirrored on the next sync -------------------
+  tabChat.setAttribute('aria-selected', 'true');
+  tabTraj.setAttribute('aria-selected', 'false');
+  if (typeof observerCallback === 'function') observerCallback([]);
+  const pillTabs2 = pill._children.filter((c) => c._classes.indexOf('dms-viewPillTab') !== -1);
+  if (pillTabs2[0]._classes.indexOf('dms-viewPillTabActive') === -1) {
+    throw new Error('a view switch made elsewhere was not mirrored into the capsule');
+  }
+  if (pillTabs2[1]._classes.indexOf('dms-viewPillTabActive') !== -1) {
+    throw new Error('the previously active capsule button stayed active after the switch');
+  }
+
+  // ---- 6) switch OFF again removes everything ----------------------------
+  api.dmsHeaderMergeWrite(false);
+  if (html._classes.indexOf('dms-headerMerge') !== -1) {
+    throw new Error('the merge class survived switching the feature off');
+  }
+  if (utilities._children.some((c) => c._classes.indexOf('dms-viewPill') !== -1)) {
+    throw new Error('the capsule survived switching the feature off');
+  }
+
+  // ---- 7) disposal disconnects the observer ------------------------------
+  dispose();
+  if (!disconnected) throw new Error('the disposer did not disconnect the observer');
+});
+
 const seat7 = seatOf(ctx7.registrations);
 const injected7 = seat7.options.inject('session-1');
 
