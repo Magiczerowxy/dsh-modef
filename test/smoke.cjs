@@ -7710,6 +7710,12 @@ check('the header merge mirrors the native view tabs into a capsule', () => {
   if (!/background-color:var\(--dsw-alias-bg-layer-3\)/.test(pillRule)) {
     throw new Error('the capsule track lost the slider well colour: ' + pillRule);
   }
+  // No outer shadow: at header size the slider's two-layer glow reads as a halo
+  // around a small control rather than as depth. (The FILL keeps its INSET
+  // highlight, which is internal, not surrounding.)
+  if (/box-shadow/.test(pillRule)) {
+    throw new Error('the capsule track has an outer shadow again, which reads as a halo: ' + pillRule);
+  }
   const thumbAt = cssNow.indexOf('.dms-viewPillThumb{');
   if (thumbAt < 0) throw new Error('the capsule fill rule is missing');
   const thumbRule = cssNow.slice(thumbAt, cssNow.indexOf('}', thumbAt));
