@@ -7695,6 +7695,44 @@ check('the header merge mirrors the native view tabs into a capsule', () => {
   if (!/flex:1 1 0/.test(segRule)) {
     throw new Error('the capsule segments are not equal width, so the thumb cannot travel between two identical halves: ' + segRule);
   }
+  // The capsule must match the effort slider's BAR, not a rounded rectangle: the
+  // same 28px stadium, the same high fill, and a label that inverts on that fill.
+  // Pinned so the shape cannot drift back to a box without a test failing.
+  const pillAt = cssNow.indexOf('.dms-viewPill{');
+  if (pillAt < 0) throw new Error('the capsule track rule is missing');
+  const pillRule = cssNow.slice(pillAt, cssNow.indexOf('}', pillAt));
+  if (!/height:28px/.test(pillRule)) {
+    throw new Error('the capsule track is not the slider bar height (28px): ' + pillRule);
+  }
+  if (!/border-radius:999px/.test(pillRule)) {
+    throw new Error('the capsule track is not a stadium: ' + pillRule);
+  }
+  if (!/background-color:var\(--dsw-alias-bg-layer-3\)/.test(pillRule)) {
+    throw new Error('the capsule track lost the slider well colour: ' + pillRule);
+  }
+  const thumbAt = cssNow.indexOf('.dms-viewPillThumb{');
+  if (thumbAt < 0) throw new Error('the capsule fill rule is missing');
+  const thumbRule = cssNow.slice(thumbAt, cssNow.indexOf('}', thumbAt));
+  if (!/height:28px/.test(thumbRule)) {
+    throw new Error('the capsule fill is shorter than the track, so it reads as an inset box: ' + thumbRule);
+  }
+  if (!/background-color:#3B82F6/i.test(thumbRule)) {
+    throw new Error('the capsule fill is not the slider high fill: ' + thumbRule);
+  }
+  const actAt = cssNow.indexOf('.dms-viewPillTabActive{');
+  if (actAt < 0) throw new Error('the capsule active-label rule is missing');
+  const actRule = cssNow.slice(actAt, cssNow.indexOf('}', actAt));
+  if (!/#fff|white/.test(actRule)) {
+    throw new Error('the active label does not invert on the blue fill: ' + actRule);
+  }
+  // A hover tint on the ACTIVE label would wash the white text out.
+  const hoverAt = cssNow.indexOf('.dms-viewPillTab:hover');
+  if (hoverAt >= 0) {
+    const hoverRule = cssNow.slice(hoverAt, cssNow.indexOf('}', hoverAt));
+    if (!/:not\(/.test(hoverRule)) {
+      throw new Error('the hover tint also applies to the active label, washing out the white text: ' + hoverRule);
+    }
+  }
 
   // ---- a fake DOM just big enough for the header -------------------------
   const makeEl = (tag) => {

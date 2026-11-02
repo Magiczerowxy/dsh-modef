@@ -162,8 +162,12 @@ satisfies("0.2.0-rc.1", "… || ^0.2.0-rc.1", {includePrerelease:true}) → true
 | 怎么把胶囊放进右上角 | 往 `div[data-slot="conversation.session.header.utilities"]` 里 **prepend** 一个元素。slot 条目的锚点是 `display:contents`，所以插进去的节点直接成为 `.headerUtilities` 的 flex item，自然落在那组控件最左边 |
 | 原生 tab 行怎么去掉 | **不能用 `display:none`**。DSH 用 `visibleViewLimit = max(1, floor((row.clientWidth - 48) / 120))` 决定几个 tab 直接显示，其余的折进那一行的「···」。`display:none` 让 `clientWidth` 变成 0，上限被压到 1，于是第二个视图被折进「···」——而那个「···」就在同一个被隐藏的行里，视图直接消失。正确做法是把它移出流但仍可测量：`position:absolute` + `height:0` + `visibility:hidden` |
 | 胶囊为什么不是重建的 tab | 它只是原生按钮的**镜像**：标签文字、激活态都从原生按钮读，点击就是点原生按钮。于是本地化、开发者工具对「轨迹」的隐藏、以后新增的视图，全都自动跟随，不需要复制 DSH 的任何视图逻辑 |
-| 滑块怎么做到平滑 | 一个绝对定位的 thumb，只改 `transform` 与 `width`，`transition` 走 `.28s cubic-bezier(.4,0,.2,1)`。两者都是合成层属性，滑动不会引起重排 |
+| 滑块怎么做到平滑 | 一个绝对定位的 thumb，只改 `transform` 与 `width`，`transition` 走 `.28s cubic-bezier(.4,0,.2,1)`。两者都是合成层属性，滑动不会引起重排。两段等宽（`flex:1 1 0`），填充在两个完全相同的半格之间移动 |
 | 左侧「···」的两项怎么搬过去 | 右侧那个菜单属于 `dsh-session-log-export`，行来自它私有的 `items` 数组，**没有任何 slot 可以扩展**。所以两行是从一条现有行 `cloneNode` 出来的（样式因此来自原语本身，而不是抄来的类名），再追加进菜单的 viewport。原语的键盘遍历走的是活 DOM（`list.querySelectorAll("button:not(:disabled)")`），所以追加的行会加入方向键导航，不会被跳过 |
+
+胶囊的**几何与涂装直接照搬本插件的强度滑块**，两者读作同一族控件：轨道 28px 高、`border-radius:999px`、底色 `var(--dsw-alias-bg-layer-3)`、同一条 `0 0 2px rgba(0,0,0,.10), 0 0 10px rgba(0,0,0,.15)` 柔和阴影；当前段是一整条 28px 的 `#3B82F6` 填充（带 `inset 0 1px 1px rgba(255,255,255,.35)` 高光），文字反白。
+
+刻意**没有**做滑块那个白色圆形手柄：视图只有左右两个位置，圆形手柄会停在两端、直接压在标签上，所以用整条填充来表达「当前位置」。
 
 选择器只依赖两处稳定结构：`data-slot="…header.utilities"` 与 `data-conversation-tabs`。隐藏整行用的是 `div:has(> [data-conversation-tabs])` —— CSS Modules 的类名带每构建都会变的哈希前缀，写死类名会在下次升级时静默失效。
 
